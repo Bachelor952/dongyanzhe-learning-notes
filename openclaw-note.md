@@ -1,175 +1,138 @@
-# OpenClaw 自动化求职助手部署与踩坑记录
-
-## 一、项目背景
-
-在求职过程中（尤其是投递央企/国企、BOSS直聘等平台），存在以下问题：
-
-- 招聘信息分散，获取效率低
-- 简历投递流程繁琐（重复填写信息）
-- 单次投递耗时较长（约30分钟）
-
-为提升效率，尝试使用 **OpenClaw** 构建半自动化求职助手，实现：
-
-- 自动打开招聘网站
-- 辅助岗位分析
-- 后续实现自动填写表单（目标）
-
----
-
-## 二、整体技术架构
-
-```text
+🚀 OpenClaw 半自动化求职助手搭建与实践（WSL + Edge + CDP）
+基于 WSL 环境 + Edge 浏览器 + CDP 协议，实现招聘平台自动化操作
+一、项目背景
+在求职投递（Boss 直聘、智联招聘等平台）过程中，存在大量低效问题：
+招聘信息分散，人工获取效率低
+简历投递流程重复，需反复填写个人信息
+单次完整投递耗时约 20~30 分钟
+项目目标：使用 OpenClaw 构建半自动化求职助手，核心能力：
+自动打开招聘网站
+辅助岗位信息智能分析
+浏览器自动化控制（支持后续扩展自动投递功能）
+二、整体技术架构
+text
 Windows（主机）
-   ↓
-WSL（Ubuntu 22.04）
-   ↓
-OpenClaw（Agent控制）
-   ↓
-CDP协议
-   ↓
-Microsoft Edge（浏览器自动化）
-## 三、环境准备
-1. WSL 安装与检查
+│
+├── Microsoft Edge（浏览器自动化载体）
+│   └── 开启 CDP 调试端口
+│
+├── WSL（Ubuntu 22.04）
+│   └── OpenClaw（Agent 控制核心）
+│
+└── OpenClaw Gateway（本地网关服务）
+    └── 通过 CDP 协议控制浏览器
+三、环境搭建
+1. WSL 环境检查
+执行命令确认 WSL 版本：
+bash
+运行
 wsl -l -v
-
-确认版本：
-
-Ubuntu-22.04
-WSL2
-2. 安装 Microsoft Edge（WSL）
+✅ 要求：Ubuntu-22.04 + WSL2
+2. WSL 安装 Microsoft Edge
+bash
+运行
+# 下载微软软件源配置包
 curl -sSL -O https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+# 安装软件源
 sudo dpkg -i packages-microsoft-prod.deb
+# 更新软件源
+sudo apt-get update
+# 安装Edge浏览器
+sudo apt-get install microsoft-edge-stable
+验证安装是否成功：
+bash
+运行
+microsoft-edge --version
+四、关键问题与解决方案
+❌ 问题 1：Edge 无法安装
+报错信息：
+plaintext
+E: Package 'microsoft-edge-stable' has no installation candidate
+原因：软件源未正确更新解决方案：
+bash
+运行
 sudo apt-get update
 sudo apt-get install microsoft-edge-stable
-## 四、关键问题与解决方案（核心部分）
-❗问题1：sudo 密码错误
-现象：
-sudo dpkg -i packages-microsoft-prod.deb
-Sorry, try again.
-原因：
-
-WSL 用户密码未设置或忘记
-
-解决：
-wsl -d Ubuntu-22.04 -u root
-passwd 用户名
-❗问题2：Edge 安装后无法使用
-现象：
-E: Package 'microsoft-edge-stable' has no installation candidate
-原因：
-
-软件源未正确更新
-
-解决：
-sudo apt-get update
-❗问题3：OpenClaw 浏览器启动失败（核心问题）
-报错：
+❌ 问题 2：OpenClaw 启动浏览器失败
+报错信息：
+plaintext
 Missing X server or $DISPLAY
-The platform failed to initialize
-📌 问题本质：
-
-WSL 无图形界面（GUI），浏览器无法启动
-
-✅ 解决方案（推荐）
-
-使用 Windows 本地 Edge + 远程调试模式（CDP）
-
-Step 1：启动 Windows Edge（关键）
+原因：WSL 为无 GUI 环境，无法直接运行图形化浏览器核心解决方案：改用 Windows 本地浏览器 + CDP 协议 实现控制
+五、核心方案：浏览器接管（推荐方案）
+Step 1：Windows 端启动 Edge 调试模式
+cmd
 msedge --remote-debugging-port=18800 --user-data-dir="C:\openclaw-profile"
-参数说明：
-参数	作用
-remote-debugging-port	开启浏览器调试接口
-user-data-dir	隔离浏览器数据（防止污染主账号）
-Step 2：配置 OpenClaw
+18800：CDP 调试端口
+--user-data-dir：创建独立浏览器配置，避免污染主浏览器数据
+Step 2：修改 OpenClaw 配置文件
+bash
+运行
 nano ~/.openclaw/openclaw.json
-
-加入：
-
+添加配置内容：
+json
 {
   "browser": {
     "cdpUrl": "http://127.0.0.1:18800"
   }
 }
-Step 3：启动服务
+Step 3：启动 OpenClaw 网关服务
+bash
+运行
+# 启动网关
 openclaw gateway start
-Step 4：连接浏览器
+# 查看状态
+openclaw gateway status
+Step 4：启动浏览器控制
+bash
+运行
 openclaw browser --browser-profile openclaw start
-Step 5：测试
+Step 5：自动打开招聘网站
+bash
+运行
 openclaw browser --browser-profile openclaw open https://www.zhipin.com/
-✅ 成功表现：
-页面正常打开
-无 DISPLAY 报错
-OpenClaw 可控制浏览器
-## 五、字体乱码问题
-❗问题：
-
-BOSS直聘页面中文乱码
-
-原因：
-
-WSL 缺少中文字体
-
-解决：
+六、运行效果
+✅ 自动打开 Boss 直聘 / 智联招聘等平台✅ 中文字体正常显示，无乱码✅ 浏览器完全受 OpenClaw 控制✅ 控制台可正常下发自动化指令
+七、常见问题汇总
+❌ 问题：中文乱码 / 方块字
+原因：WSL 缺少中文字体解决：
+bash
+运行
 sudo apt install fonts-noto-cjk
-## 六、Gateway 端口冲突问题
-❗问题：
-Gateway already running (pid xxx)
-Port 18789 is already in use
-解决：
+❌ 问题：Gateway 端口占用
+报错信息：Port 18789 is already in use解决：
+bash
+运行
 openclaw gateway stop
 openclaw gateway start
-## 七、插件提示问题
-提示：
-plugins.allow is empty
-说明：
-
-非官方插件（如 weixin）未显式允许
-
-可选解决：
+❌ 问题：浏览器数据污染
+原因：使用默认 Edge 用户配置解决：启动时添加独立数据目录
+cmd
+--user-data-dir="C:\openclaw-profile"
+❌ 问题：插件警告
+提示信息：plugins.allow is empty说明：仅提示信息，不影响核心功能可选优化：
+json
 "plugins": {
   "allow": ["openclaw-weixin"]
 }
-## 八、安全性考虑（重点）
-❗风险：
-浏览器自动化可能污染个人账号
-Cookie / 登录状态泄露
-✅ 解决方案：
-
-使用独立浏览器配置：
-
-msedge --remote-debugging-port=18800 --user-data-dir="C:\openclaw-profile"
-优势：
-数据隔离
-防封号
-防隐私泄露
-## 九、OpenClaw 使用流程总结
-每次使用流程：
-# 1. 启动浏览器（Windows）
-msedge --remote-debugging-port=18800 --user-data-dir="C:\openclaw-profile"
-
-# 2. 启动服务（WSL）
-openclaw gateway start
-
-# 3. 连接浏览器
-openclaw browser --browser-profile openclaw start
-
-# 4. 打开招聘网站
-openclaw browser --browser-profile openclaw open https://www.zhipin.com/
-## 十、当前进展
-
-已完成：
-
-OpenClaw 环境部署
-浏览器自动化控制
-招聘网站访问
-
-待实现：
-
-岗位信息自动提取
-岗位匹配分析
-自动填写简历（核心目标）
-## 十一、经验总结
-WSL 不适合直接运行 GUI 程序（浏览器）
-浏览器自动化推荐使用 Windows + CDP
-一定要做数据隔离（user-data-dir）
-OpenClaw 更适合作为“自动化中枢”，而不是直接爬虫
+八、使用规范（重要）
+启动顺序
+Windows 端启动 Edge 调试模式
+WSL 端启动 OpenClaw Gateway
+WSL 端启动浏览器控制
+WSL 端执行网页打开指令
+关闭建议
+bash
+运行
+# 优雅关闭
+openclaw browser stop
+openclaw gateway stop
+直接关闭终端也可，无严重影响
+九、项目总结
+本项目已完成核心功能落地：✅ OpenClaw 在 WSL 环境完整部署✅ 基于 CDP 协议实现浏览器自动化控制✅ 成功实现招聘网站自动打开✅ 完成多类环境异常问题排查与解决
+十、后续优化方向
+🔄 自动筛选匹配岗位🔄 自动提取岗位核心信息🔄 高阶功能：自动投递简历🔄 接入 AI 大模型，分析岗位 - 简历匹配度
+十一、经验总结
+WSL 环境不适合直接运行 GUI 程序（如浏览器）
+浏览器自动化最优方案：Windows 本地浏览器 + CDP 协议
+必须做浏览器环境隔离（user-data-dir）
+OpenClaw 定位：自动化控制中枢，而非单纯的爬虫工具
